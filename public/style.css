@@ -411,3 +411,26 @@ input:focus, select:focus, textarea:focus {
   color: var(--muted);
   font-size: 14px;
 }
+
+/* Integration widgets */
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.overview-card .unit { font-size: 14px; color: var(--muted); font-weight: 400; }
+.overview-card.tone-danger { border-left: 4px solid var(--danger); }
+.overview-card.tone-warning { border-left: 4px solid var(--warning); }
+.overview-card pre {
+  background: var(--bg);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  overflow-x: auto;
+}
+.overview-card a { color: var(--accent); }
+.contract-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.contract-row:last-child { border-bottom: none; }

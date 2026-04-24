@@ -80,6 +80,8 @@ $$('.tab').forEach(t => t.addEventListener('click', () => {
   $(`#view-${view}`).classList.remove('hidden');
   if (view === 'overview') renderOverview();
   if (view === 'inbox') renderInbox();
+  if (view === 'finance') renderFinance();
+  if (view === 'hr') renderHR();
 }));
 
 // ----- Utils -----
@@ -526,3 +528,100 @@ async function init() {
   }
 }
 init();
+
+// ----- Finance (Money Forward) -----
+async function renderFinance() {
+  const root = $('#financeContent');
+  root.textContent = '';
+  root.appendChild(el('div', { class: 'empty-state' }, 'Money Forward 連携情報を読込中...'));
+  try {
+    const status = await api('GET', '/api/integrations/status');
+    root.textContent = '';
+    if (!status.mf.configured) {
+      root.appendChild(renderNotConfigured('Money Forward Cloud', status.mf.missing, 'docs/integrations/moneyforward-cloud.md', status.mf.authUrlHint));
+      return;
+    }
+    const summary = await api('GET', '/api/integrations/mf/summary');
+    if (summary.error) {
+      root.appendChild(el('div', { class: 'empty-state' }, `エラー: ${summary.error}`));
+      return;
+    }
+    const grid = el('div', { class: 'overview-grid' }, [
+      kpiCard('今月の請求件数', summary.invoiceCount ?? 0, '件'),
+      kpiCard('今月の請求金額', fmtYen(summary.revenueThisMonth ?? 0), ''),
+      kpiCard('未収金件数', summary.overdueCount ?? 0, '件', summary.overdueCount > 0 ? 'danger' : ''),
+    ]);
+    root.appendChild(grid);
+    root.appendChild(el('p', { class: 'muted small' }, `最終取得: ${summary.fetchedAt || '-'} ・ キャッシュ 10 分`));
+  } catch (err) {
+    root.textContent = '';
+    root.appendChild(el('div', { class: 'empty-state' }, '読込エラー: ' + err.message));
+  }
+}
+
+// ----- HR (SmartHR) -----
+async function renderHR() {
+  const root = $('#hrContent');
+  root.textContent = '';
+  root.appendChild(el('div', { class: 'empty-state' }, 'SmartHR 連携情報を読込中...'));
+  try {
+    const status = await api('GET', '/api/integrations/status');
+    root.textContent = '';
+    if (!status.smarthr.configured) {
+      root.appendChild(renderNotConfigured('SmartHR', status.smarthr.missing, 'docs/integrations/smarthr.md'));
+      return;
+    }
+    const summary = await api('GET', '/api/integrations/smarthr/summary');
+    const grid = el('div', { class: 'overview-grid' }, [
+      kpiCard('総従業員数', summary.total ?? 0, '名'),
+      ...Object.entries(summary.byStatus || {}).map(([s, n]) => kpiCard(s, n, '名')),
+      kpiCard('60日以内の契約更新', (summary.upcomingContractEnds || []).length, '件',
+        (summary.upcomingContractEnds || []).length > 0 ? 'warning' : ''),
+    ]);
+    root.appendChild(grid);
+
+    if (summary.upcomingContractEnds && summary.upcomingContractEnds.length) {
+      const list = el('div', { class: 'overview-card' }, [
+        el('h3', {}, '契約更新予定（60日以内）'),
+        ...summary.upcomingContractEnds.map(x => el('div', { class: 'contract-row' }, [
+          el('span', {}, x.name),
+          el('span', { class: 'tag deadline' }, x.end),
+        ])),
+      ]);
+      root.appendChild(list);
+    }
+    root.appendChild(el('p', { class: 'muted small' }, `最終取得: ${summary.fetchedAt || '-'} ・ キャッシュ 5 分`));
+  } catch (err) {
+    root.textContent = '';
+    root.appendChild(el('div', { class: 'empty-state' }, '読込エラー: ' + err.message));
+  }
+}
+
+function renderNotConfigured(service, missing, docPath, authUrl) {
+  const card = el('div', { class: 'overview-card' }, [
+    el('h3', {}, `${service} 未接続`),
+    el('p', { class: 'muted' }, '以下の環境変数を設定してダッシュボードを再起動してください:'),
+    el('pre', {}, (missing || []).join('\n')),
+    el('p', { class: 'muted' }, [
+      '手順は ',
+      el('a', { href: docPath, target: '_blank', rel: 'noopener' }, docPath),
+      ' を参照。',
+    ]),
+    authUrl ? el('p', {}, [
+      el('a', { href: authUrl, class: 'btn primary', target: '_blank', rel: 'noopener' }, 'OAuth 認可を開始'),
+    ]) : null,
+  ].filter(Boolean));
+  return card;
+}
+
+function kpiCard(label, value, unit, tone) {
+  return el('div', { class: `overview-card ${tone ? 'tone-' + tone : ''}` }, [
+    el('h3', {}, label),
+    el('div', { class: 'overview-big' }, [String(value), el('span', { class: 'unit' }, unit ? ' ' + unit : '')]),
+  ]);
+}
+
+function fmtYen(n) {
+  if (!n) return '¥0';
+  return '¥' + n.toLocaleString('ja-JP');
+}

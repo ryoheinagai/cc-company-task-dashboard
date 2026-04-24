@@ -8,6 +8,8 @@ import { readFile, writeFile, readdir, stat } from 'node:fs/promises';
 import { existsSync, watch } from 'node:fs';
 import { resolve, join, dirname, extname, relative, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as smarthr from './lib/integrations/smarthr.mjs';
+import * as mf from './lib/integrations/moneyforward.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -442,6 +444,40 @@ async function handle(req, res) {
         await writeFile(path2, header + entry, 'utf-8');
       }
       return sendJSON(res, 201, { ok: true });
+    }
+
+    // ---------- Integrations (SmartHR / MF) ----------
+    if (path === '/api/integrations/status' && method === 'GET') {
+      return sendJSON(res, 200, {
+        smarthr: smarthr.getStatus(),
+        mf: mf.getStatus(),
+      });
+    }
+    if (path === '/api/integrations/smarthr/summary' && method === 'GET') {
+      try { return sendJSON(res, 200, await smarthr.getSummary()); }
+      catch (e) { return sendJSON(res, 502, { error: e.message }); }
+    }
+    if (path === '/api/integrations/smarthr/crews' && method === 'GET') {
+      try { return sendJSON(res, 200, await smarthr.listCrews()); }
+      catch (e) { return sendJSON(res, 502, { error: e.message }); }
+    }
+    if (path === '/api/integrations/mf/summary' && method === 'GET') {
+      try { return sendJSON(res, 200, await mf.getSummary()); }
+      catch (e) { return sendJSON(res, 502, { error: e.message }); }
+    }
+    if (path === '/api/integrations/mf/callback' && method === 'GET') {
+      // OAuth callback: exchange code → tokens
+      const code = url.searchParams.get('code');
+      if (!code) { res.writeHead(400); res.end('missing code'); return; }
+      try {
+        await mf.exchangeCodeForTokens(code, `http://localhost:${PORT}/api/integrations/mf/callback`);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end('<html><body><h2>✅ MF 連携完了</h2><p>このタブを閉じてダッシュボードに戻ってください。</p></body></html>');
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(`<html><body><h2>❌ 失敗</h2><pre>${String(e.message).replace(/</g, '&lt;')}</pre></body></html>`);
+      }
+      return;
     }
 
     // Static

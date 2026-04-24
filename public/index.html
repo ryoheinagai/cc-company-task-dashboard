@@ -16,6 +16,8 @@
       <button class="tab active" data-view="tasks">タスク</button>
       <button class="tab" data-view="overview">サマリー</button>
       <button class="tab" data-view="inbox">Inbox</button>
+      <button class="tab" data-view="finance">財務</button>
+      <button class="tab" data-view="hr">人事</button>
     </nav>
     <div class="topbar-right">
       <button id="themeBtn" class="iconbtn" title="テーマ切替">🌓</button>
@@ -112,6 +114,16 @@
         <button type="submit" class="btn primary">追加</button>
       </form>
       <div id="inboxList"></div>
+    </section>
+
+    <!-- View: finance (Money Forward) -->
+    <section id="view-finance" class="view hidden">
+      <div id="financeContent"></div>
+    </section>
+
+    <!-- View: hr (SmartHR) -->
+    <section id="view-hr" class="view hidden">
+      <div id="hrContent"></div>
     </section>
   </main>
 
