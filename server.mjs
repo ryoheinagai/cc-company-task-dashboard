@@ -5,7 +5,7 @@
 
 import { createServer } from 'node:http';
 import { readFile, writeFile, readdir, stat } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, watch } from 'node:fs';
 import { resolve, join, dirname, extname, relative, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -122,10 +122,8 @@ async function listTodoDates() {
 }
 
 function todayStr() {
-  const now = new Date();
-  const tz = 9 * 60; // JST
-  const local = new Date(now.getTime() + (tz - now.getTimezoneOffset()) * 60000);
-  return local.toISOString().slice(0, 10);
+  // JST (UTC+9). Shift epoch by +9h and read UTC slice.
+  return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
 }
 
 // ---------- Task operations ----------
@@ -414,6 +412,22 @@ async function handle(req, res) {
     }
 
     // Static
+    if (path === '/api/events' && method === 'GET') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      res.write(`event: connected\ndata: ${JSON.stringify({ today: todayStr() })}\n\n`);
+      sseClients.add(res);
+      const keepalive = setInterval(() => {
+        try { res.write(': keepalive\n\n'); } catch { /* ignore */ }
+      }, 25000);
+      req.on('close', () => { clearInterval(keepalive); sseClients.delete(res); });
+      return;
+    }
+
     if (path === '/' || path === '/index.html') return sendStatic(res, join(PUBLIC_DIR, 'index.html'));
     if (path.startsWith('/')) {
       const safe = normalize(path).replace(/^[/\\]+/, '');
@@ -427,6 +441,39 @@ async function handle(req, res) {
     sendJSON(res, 500, { error: e.message });
   }
 }
+
+// ---------- SSE + file watcher ----------
+const sseClients = new Set();
+function broadcast(event, payload) {
+  const msg = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(msg); } catch { sseClients.delete(res); }
+  }
+}
+
+function watchDir(dir, kind) {
+  if (!existsSync(dir)) return;
+  let debounce = null;
+  const pending = new Set();
+  try {
+    watch(dir, { persistent: true }, (eventType, filename) => {
+      if (!filename || !filename.endsWith('.md')) return;
+      pending.add(filename);
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        const files = Array.from(pending);
+        pending.clear();
+        broadcast('change', { kind, files, at: Date.now() });
+      }, 150);
+    });
+  } catch (e) {
+    console.warn(`[watch] failed to watch ${dir}: ${e.message}`);
+  }
+}
+
+watchDir(TODOS_DIR, 'todos');
+watchDir(INBOX_DIR, 'inbox');
+watchDir(NOTES_DIR, 'notes');
 
 createServer(handle).listen(PORT, () => {
   console.log('');

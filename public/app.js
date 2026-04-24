@@ -399,6 +399,54 @@ $('#inboxForm').addEventListener('submit', async (e) => {
   } catch (err) { toast(err.message, 'error'); }
 });
 
+// ----- Live updates via SSE -----
+let sse = null;
+let sseRefreshTimer = null;
+function initSSE() {
+  try {
+    sse = new EventSource('/api/events');
+    sse.addEventListener('change', (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      // Debounce rapid successive events (e.g., editor saves)
+      clearTimeout(sseRefreshTimer);
+      sseRefreshTimer = setTimeout(async () => {
+        const activeView = document.querySelector('.tab.active')?.dataset?.view;
+        if (data.kind === 'todos') {
+          if (activeView === 'tasks') await loadTasks(state.currentDate);
+          else if (activeView === 'overview') await renderOverview();
+        } else if (data.kind === 'inbox' && activeView === 'inbox') {
+          await renderInbox();
+        } else if (data.kind === 'notes' && activeView === 'overview') {
+          await renderOverview();
+        }
+      }, 200);
+    });
+    sse.addEventListener('connected', () => {
+      // Connection established, no-op
+    });
+    sse.onerror = () => {
+      // EventSource auto-reconnects. If persistently broken, polling fallback kicks in.
+    };
+  } catch {
+    // Browser doesn't support EventSource (very unlikely). Fall back to polling.
+  }
+}
+
+// Polling fallback: every 15s, refresh the current view if the tab is visible
+function initPollingFallback() {
+  setInterval(async () => {
+    if (document.hidden) return;
+    if (sse && sse.readyState === 1) return; // SSE healthy, skip polling
+    try {
+      const activeView = document.querySelector('.tab.active')?.dataset?.view;
+      if (activeView === 'tasks') await loadTasks(state.currentDate);
+      else if (activeView === 'overview') await renderOverview();
+      else if (activeView === 'inbox') await renderInbox();
+    } catch { /* ignore */ }
+  }, 15000);
+}
+
 // ----- Init -----
 async function init() {
   initTheme();
@@ -408,6 +456,8 @@ async function init() {
     const d = new Date(state.today + 'T00:00:00');
     d.setDate(d.getDate() + 7);
     $('#addDeadline').value = d.toISOString().slice(0, 10);
+    initSSE();
+    initPollingFallback();
   } catch (err) {
     toast('初期化に失敗しました: ' + err.message, 'error');
   }
