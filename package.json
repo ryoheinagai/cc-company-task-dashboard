@@ -1,6 +1,6 @@
 {
   "name": "cc-company-task-dashboard",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Browser-based task manager for cc-company — add / toggle / edit / delete / carry-over tasks stored in secretary/todos/*.md",
   "keywords": [
     "cc-company",

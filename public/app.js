@@ -537,26 +537,97 @@ async function renderFinance() {
   try {
     const status = await api('GET', '/api/integrations/status');
     root.textContent = '';
+
+    // Always show 会計 MCP guide (lives in Claude Code, not dashboard)
+    root.appendChild(renderAccountingMcpCard());
+
     if (!status.mf.configured) {
-      root.appendChild(renderNotConfigured('Money Forward Cloud', status.mf.missing, 'docs/integrations/moneyforward-cloud.md', status.mf.authUrlHint));
+      const card = renderNotConfigured(
+        'Money Forward Cloud API (経費 / 給与 / 勤怠 / 請求書)',
+        status.mf.missing,
+        'docs/integrations/moneyforward-cloud.md',
+        status.mf.authUrlHint,
+      );
+      root.appendChild(card);
       return;
     }
+
     const summary = await api('GET', '/api/integrations/mf/summary');
-    if (summary.error) {
-      root.appendChild(el('div', { class: 'empty-state' }, `エラー: ${summary.error}`));
-      return;
-    }
-    const grid = el('div', { class: 'overview-grid' }, [
-      kpiCard('今月の請求件数', summary.invoiceCount ?? 0, '件'),
-      kpiCard('今月の請求金額', fmtYen(summary.revenueThisMonth ?? 0), ''),
-      kpiCard('未収金件数', summary.overdueCount ?? 0, '件', summary.overdueCount > 0 ? 'danger' : ''),
-    ]);
-    root.appendChild(grid);
-    root.appendChild(el('p', { class: 'muted small' }, `最終取得: ${summary.fetchedAt || '-'} ・ キャッシュ 10 分`));
+
+    root.appendChild(renderProductSection('請求書 (Invoice)', summary.invoice, [
+      { key: 'count', label: '今月請求件数', unit: '件' },
+      { key: 'totalBilled', label: '今月請求金額', unit: '', fmt: fmtYen },
+      { key: 'overdueCount', label: '未収件数', unit: '件', tone: v => v > 0 ? 'danger' : '' },
+      { key: 'overdueAmount', label: '未収金額', unit: '', fmt: fmtYen, tone: v => v > 0 ? 'danger' : '' },
+    ]));
+
+    root.appendChild(renderProductSection('経費 (Expense)', summary.expense, [
+      { key: 'total', label: '今月申請件数', unit: '件' },
+      { key: 'pending', label: '未承認件数', unit: '件', tone: v => v > 0 ? 'warning' : '' },
+      { key: 'approved', label: '承認済件数', unit: '件' },
+      { key: 'approvedAmount', label: '承認済金額', unit: '', fmt: fmtYen },
+    ]));
+
+    root.appendChild(renderProductSection('勤怠 (Attendance)', summary.attendance, [
+      { key: 'employeeCount', label: '対象従業員', unit: '名' },
+      { key: 'totalWorkHours', label: '総労働時間', unit: 'h' },
+      { key: 'totalOvertimeHours', label: '残業時間', unit: 'h', tone: v => v > 40 ? 'warning' : '' },
+      { key: 'pendingApprovalCount', label: '未承認', unit: '件', tone: v => v > 0 ? 'warning' : '' },
+    ]));
+
+    root.appendChild(renderProductSection('給与 (Payroll)', summary.payroll, [
+      { key: 'employeeCount', label: '対象従業員', unit: '名' },
+      { key: 'totalGrossPay', label: '総支給額', unit: '', fmt: fmtYen },
+      { key: 'totalNetPay', label: '総差引支給', unit: '', fmt: fmtYen },
+      { key: 'unconfirmedCount', label: '未確定', unit: '件', tone: v => v > 0 ? 'warning' : '' },
+    ], '※ 個人別データは表示しません（PII 保護、集計値のみ）'));
+
+    root.appendChild(el('p', { class: 'muted small' }, `最終取得: ${[summary.invoice?.fetchedAt, summary.expense?.fetchedAt].filter(Boolean)[0] || '-'} ・ キャッシュ 10 分`));
   } catch (err) {
     root.textContent = '';
     root.appendChild(el('div', { class: 'empty-state' }, '読込エラー: ' + err.message));
   }
+}
+
+function renderAccountingMcpCard() {
+  return el('div', { class: 'overview-card' }, [
+    el('h3', {}, 'クラウド会計（MCP経由）'),
+    el('p', { class: 'muted' }, '会計データは Claude Code の MCP 経由で直接扱います（このダッシュボードには表示しません）。'),
+    el('pre', {}, 'claude mcp add mfc_ca --url https://beta.mcp.developers.biz.moneyforward.com/mcp/ca/v3'),
+    el('p', { class: 'muted small' }, [
+      '手順: ',
+      el('a', { href: 'docs/integrations/moneyforward-cloud.md', target: '_blank', rel: 'noopener' }, 'docs/integrations/moneyforward-cloud.md (Phase A)'),
+    ]),
+  ]);
+}
+
+function renderProductSection(title, summary, kpis, footer) {
+  if (!summary || summary.configured === false) {
+    return el('div', { class: 'overview-card' }, [
+      el('h3', {}, title),
+      el('p', { class: 'muted' }, '未接続'),
+    ]);
+  }
+  if (summary.error) {
+    return el('div', { class: 'overview-card' }, [
+      el('h3', {}, title),
+      el('p', { class: 'muted' }, `データ取得エラー: ${summary.error.slice(0, 150)}`),
+    ]);
+  }
+
+  const children = [el('h3', {}, title)];
+  const grid = el('div', { class: 'kpi-inline-grid' }, kpis.map(k => {
+    const raw = summary[k.key];
+    const v = raw == null ? '-' : (k.fmt ? k.fmt(raw) : String(raw));
+    const tone = typeof raw === 'number' && k.tone ? k.tone(raw) : '';
+    return el('div', { class: `kpi-inline ${tone ? 'tone-' + tone : ''}` }, [
+      el('div', { class: 'kpi-inline-label' }, k.label),
+      el('div', { class: 'kpi-inline-value' }, [v, el('span', { class: 'unit' }, k.unit ? ' ' + k.unit : '')]),
+    ]);
+  }));
+  children.push(grid);
+  if (footer) children.push(el('p', { class: 'muted small' }, footer));
+  return el('div', { class: 'overview-card product-card' }, children);
 }
 
 // ----- HR (SmartHR) -----
@@ -598,6 +669,25 @@ async function renderHR() {
 }
 
 function renderNotConfigured(service, missing, docPath, authUrl) {
+  const button = authUrl
+    ? el('button', {
+        class: 'btn primary',
+        on: {
+          click: async () => {
+            try {
+              // If authUrl is our proxy endpoint, fetch the actual auth URL first
+              if (authUrl.startsWith('/api/')) {
+                const r = await api('GET', authUrl);
+                if (r.url) window.open(r.url, '_blank', 'noopener');
+              } else {
+                window.open(authUrl, '_blank', 'noopener');
+              }
+            } catch (e) { toast(e.message, 'error'); }
+          }
+        }
+      }, 'OAuth 認可を開始')
+    : null;
+
   const card = el('div', { class: 'overview-card' }, [
     el('h3', {}, `${service} 未接続`),
     el('p', { class: 'muted' }, '以下の環境変数を設定してダッシュボードを再起動してください:'),
@@ -607,9 +697,7 @@ function renderNotConfigured(service, missing, docPath, authUrl) {
       el('a', { href: docPath, target: '_blank', rel: 'noopener' }, docPath),
       ' を参照。',
     ]),
-    authUrl ? el('p', {}, [
-      el('a', { href: authUrl, class: 'btn primary', target: '_blank', rel: 'noopener' }, 'OAuth 認可を開始'),
-    ]) : null,
+    button ? el('p', {}, [button]) : null,
   ].filter(Boolean));
   return card;
 }

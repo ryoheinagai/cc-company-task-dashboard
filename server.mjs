@@ -462,8 +462,14 @@ async function handle(req, res) {
       catch (e) { return sendJSON(res, 502, { error: e.message }); }
     }
     if (path === '/api/integrations/mf/summary' && method === 'GET') {
-      try { return sendJSON(res, 200, await mf.getSummary()); }
+      try { return sendJSON(res, 200, await mf.getAllSummaries()); }
       catch (e) { return sendJSON(res, 502, { error: e.message }); }
+    }
+    if (path === '/api/integrations/mf/authorize' && method === 'GET') {
+      try {
+        const redirect = `http://localhost:${PORT}/api/integrations/mf/callback`;
+        return sendJSON(res, 200, { url: mf.getAuthorizeUrl(redirect) });
+      } catch (e) { return sendJSON(res, 400, { error: e.message }); }
     }
     if (path === '/api/integrations/mf/callback' && method === 'GET') {
       // OAuth callback: exchange code → tokens
@@ -472,10 +478,10 @@ async function handle(req, res) {
       try {
         await mf.exchangeCodeForTokens(code, `http://localhost:${PORT}/api/integrations/mf/callback`);
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end('<html><body><h2>✅ MF 連携完了</h2><p>このタブを閉じてダッシュボードに戻ってください。</p></body></html>');
+        res.end('<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;padding:40px"><h2>✅ MF 連携完了</h2><p>このタブを閉じてダッシュボードに戻ってください。</p><script>setTimeout(()=>window.close(),2000)</script></body>');
       } catch (e) {
         res.writeHead(500, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(`<html><body><h2>❌ 失敗</h2><pre>${String(e.message).replace(/</g, '&lt;')}</pre></body></html>`);
+        res.end(`<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;padding:40px"><h2>❌ 失敗</h2><pre>${String(e.message).replace(/</g, '&lt;')}</pre></body>`);
       }
       return;
     }
