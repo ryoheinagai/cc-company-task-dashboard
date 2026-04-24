@@ -102,8 +102,33 @@ main { padding: 18px; max-width: 1100px; margin: 0 auto; }
   margin-bottom: 12px;
   font-size: 13px;
   color: var(--muted);
+  align-items: center;
+  flex-wrap: wrap;
 }
 .filter-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.viewmode { display: flex; align-items: center; gap: 8px; }
+.toggle-group {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--card);
+}
+.toggle {
+  background: transparent;
+  border: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: inherit;
+}
+.toggle:hover { color: var(--text); }
+.toggle.active {
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+}
 
 .btn {
   background: var(--card);
@@ -143,6 +168,7 @@ input:focus, select:focus, textarea:focus {
   border-radius: 10px;
   padding: 14px 16px;
   box-shadow: var(--shadow);
+  border-left: 4px solid var(--border);
 }
 .section-header {
   display: flex;
@@ -161,6 +187,41 @@ input:focus, select:focus, textarea:focus {
   border-radius: 999px;
   font-weight: 600;
 }
+
+/* --- Category accent colors (left border + count pill) --- */
+.section.cat-コーポレート { border-left-color: #3b82f6; }
+.section.cat-コーポレート .section-header .count { background: #dbeafe; color: #1d4ed8; }
+.section.cat-ブログ { border-left-color: #8b5cf6; }
+.section.cat-ブログ .section-header .count { background: #ede9fe; color: #6d28d9; }
+.section.cat-開発 { border-left-color: #10b981; }
+.section.cat-開発 .section-header .count { background: #d1fae5; color: #047857; }
+.section.cat-基盤 { border-left-color: #f59e0b; }
+.section.cat-基盤 .section-header .count { background: #fef3c7; color: #92400e; }
+.section.cat-営業 { border-left-color: #ef4444; }
+.section.cat-営業 .section-header .count { background: #fee2e2; color: #b91c1c; }
+.section.cat-その他 { border-left-color: #9ca3af; }
+.section.cat-その他 .section-header .count { background: #f3f4f6; color: #4b5563; }
+
+[data-theme="dark"] .section.cat-コーポレート .section-header .count { background: #1e3a8a33; color: #93c5fd; }
+[data-theme="dark"] .section.cat-ブログ .section-header .count { background: #4c1d9533; color: #c4b5fd; }
+[data-theme="dark"] .section.cat-開発 .section-header .count { background: #064e3b33; color: #6ee7b7; }
+[data-theme="dark"] .section.cat-基盤 .section-header .count { background: #78350f33; color: #fbbf24; }
+[data-theme="dark"] .section.cat-営業 .section-header .count { background: #7f1d1d33; color: #fca5a5; }
+[data-theme="dark"] .section.cat-その他 .section-header .count { background: #37415133; color: #9ca3af; }
+
+/* Category tag (used in priority view when category is shown as metadata) */
+.tag.cat-コーポレート { background: #dbeafe; color: #1d4ed8; }
+.tag.cat-ブログ { background: #ede9fe; color: #6d28d9; }
+.tag.cat-開発 { background: #d1fae5; color: #047857; }
+.tag.cat-基盤 { background: #fef3c7; color: #92400e; }
+.tag.cat-営業 { background: #fee2e2; color: #b91c1c; }
+.tag.cat-その他 { background: #f3f4f6; color: #4b5563; }
+[data-theme="dark"] .tag.cat-コーポレート { background: #1e3a8a33; color: #93c5fd; }
+[data-theme="dark"] .tag.cat-ブログ { background: #4c1d9533; color: #c4b5fd; }
+[data-theme="dark"] .tag.cat-開発 { background: #064e3b33; color: #6ee7b7; }
+[data-theme="dark"] .tag.cat-基盤 { background: #78350f33; color: #fbbf24; }
+[data-theme="dark"] .tag.cat-営業 { background: #7f1d1d33; color: #fca5a5; }
+[data-theme="dark"] .tag.cat-その他 { background: #37415133; color: #9ca3af; }
 
 .task {
   display: grid;
@@ -243,7 +304,7 @@ input:focus, select:focus, textarea:focus {
 .add-card h3 { margin: 0 0 10px 0; font-size: 14px; }
 .add-form {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr auto;
   gap: 8px;
 }
 @media (max-width: 900px) {
@@ -257,7 +318,7 @@ input:focus, select:focus, textarea:focus {
   padding: 10px;
   border-radius: 6px;
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr auto auto;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto auto;
   gap: 8px;
 }
 @media (max-width: 900px) {

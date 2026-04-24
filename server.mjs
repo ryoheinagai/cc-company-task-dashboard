@@ -38,6 +38,26 @@ const INBOX_DIR = join(COMPANY_DIR, 'secretary', 'inbox');
 const NOTES_DIR = join(COMPANY_DIR, 'secretary', 'notes');
 const PUBLIC_DIR = join(__dirname, 'public');
 
+// ---------- Category classification ----------
+const CATEGORIES = ['コーポレート', 'ブログ', '開発', '基盤', '営業', 'その他'];
+// Order matters: more-specific rules first. If a task matches multiple, first hit wins.
+const CATEGORY_RULES = [
+  { cat: '営業',         re: /(営業資料|スカウト(?!プラン)|商談|提案書|提案資料|クライアント|訴求|ヒアリング|hrdev-agents(?!.*基盤)|HRdev専門家|水上|朝倉|橘|久保|返信率)/i },
+  { cat: 'ブログ',       re: /(hrdev-blog|blog|ブログ|記事|starter[-\s]?kit|step\d|published|シリーズ一覧|report-writing|原稿|連載)/i },
+  { cat: '開発',         re: /(hirebase|Railway|Vercel|Neon|デプロイ|deploy|migration|マイグレーション|未コミット|commit|stash|バグ|デバッグ|frontend|api\/|ai-service)/i },
+  { cat: 'コーポレート', re: /(corporate-next|コーポレート|(?<![a-zA-Z])LP(?![a-zA-Z])|スカウトプラン|採用チームプラン|\/service\/scout|\/service\/team|\/service\/scoutone|サイトリニューアル|PRD\s*v\d|docs\/prd|site-renewal|hrdev\.jp(?!\/blog))/i },
+  { cat: '基盤',         re: /(scoutone|ダッシュボード|dashboard|skill|MCP|Notion|session-log|秘書|\.company|tool|ツール|スクリプト|hook|cron|棚卸し|Mermaid|FigJam|Gems|memory|知見|運用)/i },
+];
+
+function classifyTask(task) {
+  if (task.category) return task.category; // explicit override
+  const text = task.text || '';
+  for (const r of CATEGORY_RULES) {
+    if (r.re.test(text)) return r.cat;
+  }
+  return 'その他';
+}
+
 // ---------- Markdown TODO parser ----------
 function parseTodoFile(content) {
   const lines = content.split('\n');
@@ -67,7 +87,7 @@ function parseTodoFile(content) {
         const v = p.slice(idx + 1).trim();
         meta[k] = v;
       }
-      tasks.push({
+      const base = {
         lineNumber: i,
         section: currentSection || '(未分類)',
         done,
@@ -77,7 +97,10 @@ function parseTodoFile(content) {
         source: meta['出典'] || '',
         completed: meta['完了'] || '',
         note: meta['備考'] || '',
-      });
+        explicitCategory: meta['カテゴリ'] || '',
+      };
+      base.category = base.explicitCategory || classifyTask(base);
+      tasks.push(base);
     }
   }
   return { lines, tasks, sections };
@@ -88,6 +111,8 @@ function renderTaskLine(task) {
   const parts = [task.text];
   if (task.priority) parts.push(`優先度: ${task.priority}`);
   if (task.deadline) parts.push(`期限: ${task.deadline}`);
+  // Only persist explicit カテゴリ; auto-classified ones stay out of the file
+  if (task.explicitCategory) parts.push(`カテゴリ: ${task.explicitCategory}`);
   if (task.source) parts.push(`出典: ${task.source}`);
   if (task.completed) parts.push(`完了: ${task.completed}`);
   if (task.note) parts.push(`備考: ${task.note}`);
@@ -172,6 +197,11 @@ async function patchTask(date, lineNumber, patch) {
   if (typeof patch.deadline === 'string') task.deadline = patch.deadline;
   if (typeof patch.source === 'string') task.source = patch.source;
   if (typeof patch.note === 'string') task.note = patch.note;
+  if (typeof patch.category === 'string') {
+    // Set explicit only when it differs from the auto-classified value
+    const auto = classifyTask({ text: task.text });
+    task.explicitCategory = patch.category && patch.category !== auto ? patch.category : '';
+  }
 
   lines[lineNumber] = renderTaskLine(task);
   await writeTodoFile(date, lines.join('\n'));
@@ -190,7 +220,7 @@ async function deleteTask(date, lineNumber) {
 }
 
 async function addTask(date, payload) {
-  const { section, text, priority = '', deadline = '', source = '' } = payload;
+  const { section, text, priority = '', deadline = '', source = '', category = '' } = payload;
   if (!text || !text.trim()) throw new Error('text required');
   const sectionName = section || '通常';
 
@@ -203,8 +233,11 @@ async function addTask(date, payload) {
   const lines = content.split('\n');
   // Find section header line
   const sectionHeaderIdx = lines.findIndex(l => l.match(new RegExp(`^##\\s+${escapeRegex(sectionName)}\\s*$`)));
+  const auto = classifyTask({ text: text.trim() });
+  const explicitCategory = category && category !== auto ? category : '';
   const newTask = {
-    done: false, text: text.trim(), priority, deadline, source, completed: '', note: ''
+    done: false, text: text.trim(), priority, deadline, source, completed: '', note: '',
+    explicitCategory,
   };
   const taskLine = renderTaskLine(newTask);
 

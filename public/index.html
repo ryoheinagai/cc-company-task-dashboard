@@ -37,6 +37,13 @@
       </div>
 
       <div class="filter-row">
+        <div class="viewmode">
+          グルーピング:
+          <div class="toggle-group">
+            <button class="toggle active" data-mode="category" type="button">カテゴリ別</button>
+            <button class="toggle" data-mode="priority" type="button">優先度別</button>
+          </div>
+        </div>
         <label><input type="checkbox" id="hideDone" checked /> 完了タスクを隠す</label>
         <label>
           優先度:
@@ -47,6 +54,18 @@
             <option value="低">低</option>
           </select>
         </label>
+        <label>
+          カテゴリ:
+          <select id="categoryFilter">
+            <option value="">すべて</option>
+            <option value="コーポレート">コーポレート</option>
+            <option value="ブログ">ブログ</option>
+            <option value="開発">開発</option>
+            <option value="基盤">基盤</option>
+            <option value="営業">営業</option>
+            <option value="その他">その他</option>
+          </select>
+        </label>
       </div>
 
       <div id="sectionList" class="section-list"></div>
@@ -55,16 +74,24 @@
         <h3>新規タスク追加</h3>
         <form id="addForm" class="add-form">
           <input type="text" id="addText" placeholder="タスク内容" required />
-          <select id="addSection">
+          <select id="addSection" title="ファイル上のセクション">
             <option value="最優先">最優先</option>
             <option value="通常" selected>通常</option>
             <option value="余裕があれば">余裕があれば</option>
-            <option value="ブログ関連（永井承認待ち）">ブログ関連</option>
           </select>
-          <select id="addPriority">
+          <select id="addPriority" title="優先度">
             <option value="通常" selected>通常</option>
             <option value="高">高</option>
             <option value="低">低</option>
+          </select>
+          <select id="addCategory" title="カテゴリ（空なら自動分類）">
+            <option value="">自動分類</option>
+            <option value="コーポレート">コーポレート</option>
+            <option value="ブログ">ブログ</option>
+            <option value="開発">開発</option>
+            <option value="基盤">基盤</option>
+            <option value="営業">営業</option>
+            <option value="その他">その他</option>
           </select>
           <input type="date" id="addDeadline" />
           <input type="text" id="addSource" placeholder="出典（任意）" />

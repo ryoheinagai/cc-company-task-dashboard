@@ -1,4 +1,7 @@
 // Company Dashboard frontend
+const CATEGORIES = ['コーポレート', 'ブログ', '開発', '基盤', '営業', 'その他'];
+const PRIORITY_ORDER = { '高': 0, '通常': 1, '低': 2, '': 3 };
+
 const state = {
   today: '',
   currentDate: '',
@@ -6,7 +9,9 @@ const state = {
   sections: [],
   hideDone: true,
   priority: '',
+  category: '',
   editingLine: null,
+  viewMode: localStorage.getItem('viewMode') || 'category',
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -126,6 +131,24 @@ async function loadTasks(date) {
   renderTasks();
 }
 
+function applyFilters(tasks) {
+  let ts = tasks;
+  if (state.hideDone) ts = ts.filter(t => !t.done);
+  if (state.priority) ts = ts.filter(t => t.priority === state.priority);
+  if (state.category) ts = ts.filter(t => t.category === state.category);
+  return ts;
+}
+
+function compareTasks(a, b) {
+  const pa = PRIORITY_ORDER[a.priority] ?? 99;
+  const pb = PRIORITY_ORDER[b.priority] ?? 99;
+  if (pa !== pb) return pa - pb;
+  const da = a.deadline || '9999-99-99';
+  const db = b.deadline || '9999-99-99';
+  if (da !== db) return da < db ? -1 : 1;
+  return a.lineNumber - b.lineNumber;
+}
+
 function renderTasks() {
   renderStats();
   const list = $('#sectionList');
@@ -138,26 +161,48 @@ function renderTasks() {
     list.appendChild(el('div', { class: 'empty-state' }, 'タスクがありません。'));
     return;
   }
+
+  const allTasks = state.sections.flatMap(s => s.tasks);
+  const groups = state.viewMode === 'category'
+    ? groupByCategory(allTasks)
+    : groupByPrioritySection(state.sections);
+
   let rendered = 0;
-  for (const sec of state.sections) {
-    let tasks = sec.tasks;
-    if (state.hideDone) tasks = tasks.filter(t => !t.done);
-    if (state.priority) tasks = tasks.filter(t => t.priority === state.priority);
+  for (const g of groups) {
+    const tasks = applyFilters(g.tasks).sort(compareTasks);
     if (!tasks.length) continue;
     rendered++;
 
-    const section = el('section', { class: 'section' }, [
-      el('h2', { class: 'section-header' }, [
-        sec.name,
-        el('span', { class: 'count' }, String(tasks.length)),
-      ]),
+    const headerChildren = [g.name, el('span', { class: 'count' }, String(tasks.length))];
+    const section = el('section', {
+      class: `section ${g.cssClass || ''}`.trim(),
+    }, [
+      el('h2', { class: 'section-header' }, headerChildren),
       ...tasks.map(t => renderTask(t)),
     ]);
     list.appendChild(section);
   }
+
   if (!rendered) {
     list.appendChild(el('div', { class: 'empty-state' }, '表示するタスクがありません。フィルタを確認してください。'));
   }
+}
+
+function groupByCategory(tasks) {
+  const buckets = new Map();
+  for (const c of CATEGORIES) buckets.set(c, []);
+  for (const t of tasks) {
+    const c = t.category || 'その他';
+    if (!buckets.has(c)) buckets.set(c, []);
+    buckets.get(c).push(t);
+  }
+  return Array.from(buckets.entries()).map(([name, arr]) => ({
+    name, tasks: arr, cssClass: `cat-${name}`
+  }));
+}
+
+function groupByPrioritySection(sections) {
+  return sections.map(s => ({ name: s.name, tasks: s.tasks, cssClass: '' }));
 }
 
 function renderTask(t) {
@@ -165,6 +210,7 @@ function renderTask(t) {
   const isEditing = state.editingLine === t.lineNumber;
 
   const metaEls = [];
+  if (t.category && state.viewMode !== 'category') metaEls.push(el('span', { class: `tag cat cat-${t.category}` }, t.category));
   if (t.priority) metaEls.push(el('span', { class: `tag priority-${t.priority}` }, t.priority));
   if (t.deadline) metaEls.push(el('span', { class: `tag deadline ${dCls}` }, deadlineLabel(t.deadline)));
   if (t.source) metaEls.push(el('span', { class: 'tag source' }, t.source));
@@ -241,6 +287,10 @@ function renderEditor(t) {
     el('option', { value: '通常', selected: t.priority === '通常' }, '通常'),
     el('option', { value: '低', selected: t.priority === '低' }, '低'),
   ]);
+  const categorySel = el('select', { 'data-field': 'category', title: 'カテゴリ' }, [
+    el('option', { value: '' }, '自動分類'),
+    ...CATEGORIES.map(c => el('option', { value: c, selected: t.category === c }, c)),
+  ]);
   const deadlineInput = el('input', { type: 'date', 'data-field': 'deadline', value: t.deadline || '' });
   const sourceInput = el('input', { type: 'text', 'data-field': 'source', value: t.source || '', placeholder: '出典' });
 
@@ -251,6 +301,7 @@ function renderEditor(t) {
         const patch = {
           text: textInput.value,
           priority: prioritySel.value,
+          category: categorySel.value,
           deadline: deadlineInput.value,
           source: sourceInput.value,
         };
@@ -274,7 +325,7 @@ function renderEditor(t) {
     }
   }, '取消');
 
-  return el('div', { class: 'editor' }, [textInput, prioritySel, deadlineInput, sourceInput, saveBtn, cancelBtn]);
+  return el('div', { class: 'editor' }, [textInput, prioritySel, categorySel, deadlineInput, sourceInput, saveBtn, cancelBtn]);
 }
 
 function renderStats() {
@@ -292,10 +343,18 @@ function renderStats() {
   for (const p of parts) stats.appendChild(p);
 }
 
-// ----- Filters -----
+// ----- Filters & view toggle -----
 $('#hideDone').addEventListener('change', (e) => { state.hideDone = e.target.checked; renderTasks(); });
 $('#priorityFilter').addEventListener('change', (e) => { state.priority = e.target.value; renderTasks(); });
+$('#categoryFilter').addEventListener('change', (e) => { state.category = e.target.value; renderTasks(); });
 $('#dateSelect').addEventListener('change', (e) => loadTasks(e.target.value));
+
+$$('.toggle').forEach(btn => btn.addEventListener('click', () => {
+  state.viewMode = btn.dataset.mode;
+  localStorage.setItem('viewMode', state.viewMode);
+  $$('.toggle').forEach(b => b.classList.toggle('active', b.dataset.mode === state.viewMode));
+  renderTasks();
+}));
 $('#todayBtn').addEventListener('click', async () => {
   if (!state.dates.includes(state.today)) state.dates.unshift(state.today);
   $('#dateSelect').value = state.today;
@@ -323,6 +382,7 @@ $('#addForm').addEventListener('submit', async (e) => {
     section: $('#addSection').value,
     text: $('#addText').value,
     priority: $('#addPriority').value,
+    category: $('#addCategory').value,
     deadline: $('#addDeadline').value,
     source: $('#addSource').value,
   };
@@ -331,6 +391,7 @@ $('#addForm').addEventListener('submit', async (e) => {
     $('#addText').value = '';
     $('#addDeadline').value = '';
     $('#addSource').value = '';
+    $('#addCategory').value = '';
     await loadTasks(state.currentDate);
     toast('追加しました');
   } catch (err) { toast(err.message, 'error'); }
@@ -450,6 +511,8 @@ function initPollingFallback() {
 // ----- Init -----
 async function init() {
   initTheme();
+  // Sync view mode toggle with persisted state
+  $$('.toggle').forEach(b => b.classList.toggle('active', b.dataset.mode === state.viewMode));
   try {
     await loadDates();
     await loadTasks(state.currentDate);
