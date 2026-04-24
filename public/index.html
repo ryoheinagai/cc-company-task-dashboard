@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>🏢 Company Dashboard</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="title">
+      <span class="emoji">🏢</span>
+      <h1>Company Dashboard</h1>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-view="tasks">タスク</button>
+      <button class="tab" data-view="overview">サマリー</button>
+      <button class="tab" data-view="inbox">Inbox</button>
+    </nav>
+    <div class="topbar-right">
+      <button id="themeBtn" class="iconbtn" title="テーマ切替">🌓</button>
+    </div>
+  </header>
+
+  <main id="app">
+    <!-- View: tasks -->
+    <section id="view-tasks" class="view">
+      <div class="toolbar">
+        <label class="datepicker">
+          日付:
+          <select id="dateSelect"></select>
+        </label>
+        <button id="todayBtn" class="btn">今日</button>
+        <button id="carryoverBtn" class="btn">昨日の未完了を繰り越す</button>
+        <div class="spacer"></div>
+        <div class="stats" id="stats"></div>
+      </div>
+
+      <div class="filter-row">
+        <label><input type="checkbox" id="hideDone" checked /> 完了タスクを隠す</label>
+        <label>
+          優先度:
+          <select id="priorityFilter">
+            <option value="">すべて</option>
+            <option value="高">高</option>
+            <option value="通常">通常</option>
+            <option value="低">低</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="sectionList" class="section-list"></div>
+
+      <div class="add-card">
+        <h3>新規タスク追加</h3>
+        <form id="addForm" class="add-form">
+          <input type="text" id="addText" placeholder="タスク内容" required />
+          <select id="addSection">
+            <option value="最優先">最優先</option>
+            <option value="通常" selected>通常</option>
+            <option value="余裕があれば">余裕があれば</option>
+            <option value="ブログ関連（永井承認待ち）">ブログ関連</option>
+          </select>
+          <select id="addPriority">
+            <option value="通常" selected>通常</option>
+            <option value="高">高</option>
+            <option value="低">低</option>
+          </select>
+          <input type="date" id="addDeadline" />
+          <input type="text" id="addSource" placeholder="出典（任意）" />
+          <button type="submit" class="btn primary">追加</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- View: overview -->
+    <section id="view-overview" class="view hidden">
+      <div class="overview-grid" id="overview"></div>
+    </section>
+
+    <!-- View: inbox -->
+    <section id="view-inbox" class="view hidden">
+      <form id="inboxForm" class="inbox-form">
+        <input type="text" id="inboxText" placeholder="思いついたことをキャプチャ..." required />
+        <button type="submit" class="btn primary">追加</button>
+      </form>
+      <div id="inboxList"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
